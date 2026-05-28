@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: xara_mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - xara_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: xara_api
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URL: mongodb://admin:admin123@mongodb:27017
+      DATABASE_NAME: xara_db
+      SECRET_KEY: ${SECRET_KEY:-9a4891b2c45d3e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 3000
+      ENVIRONMENT: production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - xara_network
+    volumes:
+      - ./static:/app/static
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+
+networks:
+  xara_network:
+    driver: bridge
