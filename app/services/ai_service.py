@@ -1,11 +1,14 @@
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from bson import ObjectId
-from app.models.campaign_model import AIMetadataModel
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from app.models.campaign_model import AIMetadataModel
+from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)
+
 
 class AIService:
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -17,9 +20,39 @@ class AIService:
         """Record AI metadata from screen sensors."""
         document = AIMetadataModel.create_document(metadata_data)
         result = await self.collection.insert_one(document)
-        
+
         metadata = await self.collection.find_one({"_id": result.inserted_id})
-        return AIMetadataModel.format_response(metadata)
+        formatted = AIMetadataModel.format_response(metadata)
+
+        screen_id = formatted.get("screen_id")
+        audience_count = formatted.get("audience_count")
+        engagement_score = formatted.get("engagement_score")
+
+        if screen_id:
+            update_fields = {}
+            if audience_count is not None:
+                update_fields["audience"] = int(audience_count)
+            if engagement_score is not None:
+                update_fields["engagement"] = int(engagement_score)
+
+            if update_fields:
+                await self.db["screens"].update_one({"screen_id": screen_id}, {"$set": update_fields})
+                if "audience" in update_fields:
+                    await manager.broadcast_event({
+                        "event": "audience_updated",
+                        "screen_id": screen_id,
+                        "audience": int(audience_count),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    })
+                if "engagement" in update_fields:
+                    await manager.broadcast_event({
+                        "event": "engagement_updated",
+                        "screen_id": screen_id,
+                        "engagement": int(engagement_score),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    })
+
+        return formatted
 
     async def get_screen_metadata(self, screen_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         """Get recent metadata for a screen."""

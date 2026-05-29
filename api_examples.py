@@ -7,7 +7,7 @@ import requests
 import json
 from datetime import datetime
 import asyncio
-import websockets
+import websocketszbn
 
 BASE_URL = "http://localhost:8000"
 WEBSOCKET_URL = "ws://localhost:8000"

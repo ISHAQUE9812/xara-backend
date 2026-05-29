@@ -1,148 +1,82 @@
-"""
-Tests for XARA Screen Service
-"""
-
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from app.services.screen_service import ScreenService
-from app.models.screen_model import ScreenModel
-from bson import ObjectId
-
+from app.screens.service import ScreenService
+from app.screens.repository import ScreenRepository
+from app.ads.repository import AdRepository
+from app.screens.schema import ScreenAssignMediaRequest
 
 @pytest.fixture
 def mock_db():
-    """Mock MongoDB database"""
     db = MagicMock()
     db.__getitem__ = MagicMock(return_value=MagicMock())
     return db
 
-
-@pytest.fixture
-def screen_service(mock_db):
-    """Create screen service with mock db"""
-    return ScreenService(mock_db)
-
-
 @pytest.mark.asyncio
-async def test_register_new_screen(screen_service, mock_db):
-    """Test screen registration for a brand new screen ID (creation path)"""
-    screen_data = {
-        "screen_id": "SCREEN_001",
-        "name": "Test Screen",
-        "location": "Test Location",
-        "resolution": "1920x1080"
-    }
+async def test_create_screen(mock_db, monkeypatch):
+    """Test screen creation"""
+    monkeypatch.setattr("app.screens.repository.get_db", lambda: mock_db)
     
-    # Mock find_one to return None first (doesn't exist), then return the created doc
-    mock_id = ObjectId()
-    mock_db["screens"].find_one = AsyncMock(
-        side_effect=[
-            None,  # First call during check: does not exist
-            {
-                "_id": mock_id,
-                "screen_id": "SCREEN_001",
-                "uuid": "test-uuid",
-                "name": "Test Screen",
-                "location": "Test Location",
-                "resolution": "1920x1080"
-            }  # Second call after insert: return the created doc
-        ]
+    mock_db["screens"].insert_one = AsyncMock()
+    
+    result = await ScreenService.create_screen(
+        name_or_data="Mumbai Screen",
+        location="Mumbai Mall",
+        resolution="1920x1080"
     )
-    
-    mock_db["screens"].insert_one = AsyncMock(
-        return_value=MagicMock(inserted_id=mock_id)
-    )
-    
-    result = await screen_service.register_screen(screen_data)
     
     assert result is not None
-    assert result["id"] == str(mock_id)
-    assert result["screen_id"] == "SCREEN_001"
-    mock_db["screens"].insert_one.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_register_existing_screen(screen_service, mock_db):
-    """Test screen registration for an already existing screen ID (idempotent update path)"""
-    screen_data = {
-        "screen_id": "SCREEN_001",
-        "name": "Updated Screen Name",
-        "location": "Test Location",
-        "resolution": "1920x1080"
-    }
-    
-    mock_id = ObjectId()
-    # Mock find_one to return the existing screen, then return the updated screen doc
-    mock_db["screens"].find_one = AsyncMock(
-        side_effect=[
-            {
-                "_id": mock_id,
-                "screen_id": "SCREEN_001",
-                "uuid": "test-uuid",
-                "name": "Old Screen Name",
-                "location": "Test Location",
-                "resolution": "1920x1080"
-            },  # First call during check: exists
-            {
-                "_id": mock_id,
-                "screen_id": "SCREEN_001",
-                "uuid": "test-uuid",
-                "name": "Updated Screen Name",
-                "location": "Test Location",
-                "resolution": "1920x1080"
-            }  # Second call: return updated doc
-        ]
-    )
-    
-    mock_db["screens"].update_one = AsyncMock(
-        return_value=MagicMock(modified_count=1)
-    )
-    
-    result = await screen_service.register_screen(screen_data)
-    
-    assert result is not None
-    assert result["name"] == "Updated Screen Name"
-    mock_db["screens"].update_one.assert_called_once()
-
+    assert result["screen_name"] == "Mumbai Screen"
+    assert result["location"] == "Mumbai Mall"
+    assert result["resolution"] == "1920x1080"
+    assert result["status"] == "offline"
 
 @pytest.mark.asyncio
-async def test_get_screen_by_id(screen_service, mock_db):
-    """Test getting screen by ID"""
-    mock_db["screens"].find_one = AsyncMock(
-        return_value={
-            "_id": ObjectId(),
-            "screen_id": "SCREEN_001",
-            "name": "Test Screen"
-        }
-    )
+async def test_get_all_screens(mock_db, monkeypatch):
+    """Test getting all screens"""
+    monkeypatch.setattr("app.screens.repository.get_db", lambda: mock_db)
     
-    result = await screen_service.get_screen_by_id("SCREEN_001")
-    
-    assert result is not None
-    assert result["screen_id"] == "SCREEN_001"
-
-
-@pytest.mark.asyncio
-async def test_update_screen_status(screen_service, mock_db):
-    """Test updating screen status"""
-    mock_db["screens"].update_one = AsyncMock(
-        return_value=MagicMock(modified_count=1)
-    )
-    mock_db["screens"].find_one = AsyncMock(
-        return_value={
-            "_id": ObjectId(),
-            "screen_id": "SCREEN_001",
+    mock_screens = [
+        {
+            "screen_id": "SCR-1",
+            "screen_name": "Screen 1",
+            "location": "Location 1",
             "status": "online"
         }
-    )
+    ]
+    cursor_mock = MagicMock()
+    cursor_mock.sort = MagicMock(return_value=cursor_mock)
+    cursor_mock.to_list = AsyncMock(return_value=mock_screens)
+    mock_db["screens"].find = MagicMock(return_value=cursor_mock)
     
-    result = await screen_service.update_screen_status("SCREEN_001", "offline")
+    result = await ScreenService.get_all_screens()
+    assert len(result) == 1
+    assert result[0]["screen_id"] == "SCR-1"
+
+@pytest.mark.asyncio
+async def test_update_metrics(mock_db, monkeypatch):
+    """Test updating metrics"""
+    monkeypatch.setattr("app.screens.repository.get_db", lambda: mock_db)
     
-    assert result is not None
-    mock_db["screens"].update_one.assert_called_once()
+    screen = {
+        "screen_id": "SCR-1",
+        "audience": 0,
+        "engagement": 0
+    }
+    
+    mock_db["screens"].find_one = AsyncMock(side_effect=lambda query: screen)
+    
+    async def fake_update_one(query, update):
+        if "$set" in update:
+            screen.update(update["$set"])
+        class FakeUpdateResult:
+            matched_count = 1
+        return FakeUpdateResult()
+        
+    mock_db["screens"].update_one = AsyncMock(side_effect=fake_update_one)
+    
+    result = await ScreenService.update_metrics("SCR-1", audience=10, engagement=85)
+    
+    assert result["audience"] == 10
+    assert result["engagement"] == 85
 
-
-if __name__ == "__main__":
-    import pytest
-    pytest.main([__file__, "-v"])
