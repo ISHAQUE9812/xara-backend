@@ -21,8 +21,10 @@ async def get_current_user(token: HTTPBearer = Depends(security), db=Depends(get
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token") from exc
 
     user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+    role = payload.get("role")
+    email = payload.get("email")
+    if not user_id or not role or not email:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token claims: sub, role, and email are required")
 
     user = await db["users"].find_one({"_id": ObjectId(user_id)})
     if not user:
@@ -30,6 +32,9 @@ async def get_current_user(token: HTTPBearer = Depends(security), db=Depends(get
 
     if not user.get("is_active", True):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
+
+    if user.get("role") != role:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token role claim does not match active user profile")
 
     user["id"] = str(user.pop("_id"))
     user.pop("hashed_password", None)

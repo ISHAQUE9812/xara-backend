@@ -111,6 +111,27 @@ async def startup_event():
     manager.set_db(db)
     logger.info("MongoDB connection established and manager wired.")
     
+    # Create default admin if none exists (admin@xara.com / admin123)
+    admin_email = "admin@xara.com"
+    existing_admin = await db["users"].find_one({"role": "admin"})
+    if not existing_admin:
+        existing_admin_by_email = await db["users"].find_one({"email": admin_email})
+        if not existing_admin_by_email:
+            from app.auth.password_handler import hash_password
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            default_admin = {
+                "name": "Xara Admin",
+                "email": admin_email,
+                "hashed_password": hash_password("admin123"),
+                "role": "admin",
+                "is_active": True,
+                "created_at": now,
+                "updated_at": now
+            }
+            await db["users"].insert_one(default_admin)
+            logger.info("Default admin user created: admin@xara.com / admin123")
+            
     # Start playback engine
     await playback_engine.start()
 

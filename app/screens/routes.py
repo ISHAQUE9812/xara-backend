@@ -16,6 +16,9 @@ from app.websocket.manager import manager
 
 router = APIRouter()
 
+import logging
+logger = logging.getLogger(__name__)
+
 @router.post("", response_model=dict)
 @router.post("/", response_model=dict)
 @router.post("/create", response_model=dict)
@@ -88,6 +91,7 @@ async def get_live_monitoring(current_user: dict = Depends(require_admin)):
     for screen in screens:
         if screen.get("status") == "online":
             screen.pop("_id", None)
+            screen["id"] = screen.get("screen_id")
             if "screen_name" not in screen and "name" in screen:
                 screen["screen_name"] = screen["name"]
             elif "name" not in screen and "screen_name" in screen:
@@ -114,6 +118,7 @@ async def get_screen_by_id(
         raise HTTPException(status_code=404, detail="Screen not found")
         
     screen.pop("_id", None)
+    screen["id"] = screen.get("screen_id")
     if "screen_name" not in screen and "name" in screen:
         screen["screen_name"] = screen["name"]
     return screen
@@ -140,6 +145,7 @@ async def update_screen(
         
     updated = await ScreenRepository.get_by_id(screen_id)
     updated.pop("_id", None)
+    updated["id"] = updated.get("screen_id")
     
     if "screen_name" not in updated and "name" in updated:
         updated["screen_name"] = updated["name"]
@@ -178,20 +184,28 @@ async def assign_ad(
     data: AssignAdRequest,
     current_user: dict = Depends(require_admin)
 ):
+    logger.info(f"Assign request received: Screen '{data.screen_id}' -> Ad '{data.ad_id}'")
+    logger.info(f"User role: {current_user.get('role')}")
+    
     screen = await ScreenRepository.get_by_id(data.screen_id)
     if not screen:
+        logger.warning(f"Screen not found: {data.screen_id}")
         raise HTTPException(status_code=404, detail="Screen not found")
+    logger.info(f"Screen found: {data.screen_id}")
         
     ad = await AdRepository.get_by_id(data.ad_id)
     if not ad:
+        logger.warning(f"Advertisement not found: {data.ad_id}")
         raise HTTPException(status_code=404, detail="Advertisement not found")
+    logger.info(f"Ad found: {data.ad_id}")
         
     # Upsert Mapping Collection
     await ScreenAdMappingRepository.upsert_mapping(
         screen_id=data.screen_id,
         mapping_fields={
             "mode": "single",
-            "ad_ids": [data.ad_id]
+            "ad_ids": [data.ad_id],
+            "current_ad_index": 0
         }
     )
     
@@ -214,6 +228,12 @@ async def assign_ad(
         "playlist": [data.ad_id]
     })
     
+    # Broadcast event media_changed when assignment changes
+    await manager.broadcast_event({
+        "event": "media_changed",
+        "screen_id": data.screen_id
+    })
+    
     # Push immediate media change over websocket
     await manager.send_to_screen(data.screen_id, {
         "event": "media_changed",
@@ -230,16 +250,23 @@ async def assign_multiple_ads(
     data: AssignMultipleAdsRequest,
     current_user: dict = Depends(require_admin)
 ):
+    logger.info(f"Assign multiple ads request received: Screen '{data.screen_id}' -> Ads: {data.ad_ids}")
+    logger.info(f"User role: {current_user.get('role')}")
+    
     screen = await ScreenRepository.get_by_id(data.screen_id)
     if not screen:
+        logger.warning(f"Screen not found: {data.screen_id}")
         raise HTTPException(status_code=404, detail="Screen not found")
+    logger.info(f"Screen found: {data.screen_id}")
         
     # Verify all ads exist
     ads = []
     for ad_id in data.ad_ids:
         ad = await AdRepository.get_by_id(ad_id)
         if not ad:
+            logger.warning(f"Advertisement not found: {ad_id}")
             raise HTTPException(status_code=404, detail=f"Advertisement {ad_id} not found")
+        logger.info(f"Ad found: {ad_id}")
         ads.append(ad)
         
     # Upsert Mapping Collection
@@ -247,7 +274,9 @@ async def assign_multiple_ads(
         screen_id=data.screen_id,
         mapping_fields={
             "mode": data.mode,
-            "ad_ids": data.ad_ids
+            "ad_ids": data.ad_ids,
+            "current_ad_index": 0,
+            "rotation_interval": 10
         }
     )
     
@@ -269,6 +298,12 @@ async def assign_multiple_ads(
         "screen_id": data.screen_id,
         "mode": data.mode,
         "playlist": data.ad_ids
+    })
+    
+    # Broadcast event media_changed when assignment changes
+    await manager.broadcast_event({
+        "event": "media_changed",
+        "screen_id": data.screen_id
     })
     
     # Play the first ad in the list immediately
@@ -318,7 +353,48 @@ async def update_screen_mode(
     
     return {"screen_id": screen_id, "mode": data.mode}
 
-@router.get("/{screen_id}/current-media", response_model=CurrentMediaResponse)
+@router.get("/{screen_id}/current-media")
 async def get_current_media(screen_id: str):
-    response = await ScreenService.get_current_media(screen_id)
-    return response
+    screen = await ScreenRepository.get_by_id(screen_id)
+    if not screen:
+        raise HTTPException(status_code=404, detail="Screen not found")
+        
+    playlist = screen.get("playlist", [])
+    if not playlist:
+        return {
+            "message": "No advertisement assigned",
+            "current_media": None,
+            "screen_id": screen_id,
+            "mode": screen.get("mode", "single")
+        }
+        
+    index = screen.get("current_media_index", 0)
+    if index >= len(playlist):
+        index = 0
+        
+    current_media_id = playlist[index]
+    ad = await AdRepository.get_by_id(current_media_id)
+    if not ad:
+        return {
+            "message": "No advertisement assigned",
+            "current_media": None,
+            "screen_id": screen_id,
+            "mode": screen.get("mode", "single")
+        }
+        
+    return {
+        "screen_id": screen_id,
+        "media_id": ad["ad_id"],
+        "media_url": ad["file_url"],
+        "url": ad["file_url"],
+        "title": ad["title"],
+        "type": ad["type"],
+        "current_media": {
+            "media_id": ad["ad_id"],
+            "url": ad["file_url"],
+            "media_url": ad["file_url"],
+            "title": ad["title"],
+            "type": ad["type"]
+        },
+        "mode": screen.get("mode", "single")
+    }

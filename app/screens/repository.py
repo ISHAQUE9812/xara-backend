@@ -30,12 +30,17 @@ class ScreenRepository:
 
     @classmethod
     async def update(cls, screen_id: str, update_fields: Dict[str, Any]) -> bool:
+        import logging
+        logger = logging.getLogger(__name__)
         coll = cls._get_collection()
         result = await coll.update_one(
             {"screen_id": screen_id},
             {"$set": update_fields}
         )
-        return result.matched_count > 0
+        matched = getattr(result, "matched_count", 0)
+        modified = getattr(result, "modified_count", 0)
+        logger.info(f"ScreenRepository.update screen_id: '{screen_id}', fields: {update_fields}, matched: {matched}, modified: {modified}")
+        return matched > 0
 
     @classmethod
     async def delete(cls, screen_id: str) -> bool:
@@ -51,12 +56,18 @@ class ScreenAdMappingRepository:
 
     @classmethod
     async def upsert_mapping(cls, screen_id: str, mapping_fields: Dict[str, Any]) -> None:
+        import logging
+        logger = logging.getLogger(__name__)
         coll = cls._get_collection()
-        await coll.update_one(
+        result = await coll.update_one(
             {"screen_id": screen_id},
             {"$set": mapping_fields},
             upsert=True
         )
+        matched = getattr(result, "matched_count", 0)
+        modified = getattr(result, "modified_count", 0)
+        upserted_id = getattr(result, "upserted_id", None)
+        logger.info(f"ScreenAdMappingRepository.upsert_mapping screen_id: '{screen_id}', fields: {mapping_fields}, upserted_id: '{upserted_id}', matched: {matched}, modified: {modified}")
 
     @classmethod
     async def get_mapping_by_screen_id(cls, screen_id: str) -> Optional[Dict[str, Any]]:

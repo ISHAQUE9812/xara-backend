@@ -40,7 +40,7 @@ async def get_all_ads(current_user: dict = Depends(require_authenticated_user)):
 async def get_my_ads(current_user: dict = Depends(require_authenticated_user)):
     return await AdService.get_user_ads(current_user["id"])
 
-@router.get("/{ad_id}", response_model=AdResponse)
+@router.get("/{ad_id:regex('^[a-zA-Z0-9_-]+$')}", response_model=AdResponse)
 async def get_ad_details(
     ad_id: str,
     current_user: dict = Depends(require_authenticated_user)
@@ -55,7 +55,7 @@ async def get_ad_details(
         
     return ad
 
-@router.delete("/{ad_id}")
+@router.delete("/{ad_id:regex('^[a-zA-Z0-9_-]+$')}")
 async def delete_ad(
     ad_id: str,
     current_user: dict = Depends(require_authenticated_user)

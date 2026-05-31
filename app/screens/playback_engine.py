@@ -78,6 +78,12 @@ class PlaybackEngine:
             update_fields={"current_media_index": 0, "current_media_id": ad_id}
         )
         
+        # Update mappings state in MongoDB
+        await ScreenAdMappingRepository.upsert_mapping(
+            screen_id=screen_id,
+            mapping_fields={"current_ad_index": 0}
+        )
+        
         ad = await AdRepository.get_by_id(ad_id)
         if ad:
             # Broadcast update event to all connected listeners (e.g. admin panels)
@@ -109,6 +115,12 @@ class PlaybackEngine:
         await ScreenRepository.update(
             screen_id=screen_id,
             update_fields={"current_media_index": next_index, "current_media_id": ad_ids[next_index]}
+        )
+        
+        # Update mappings state in MongoDB
+        await ScreenAdMappingRepository.upsert_mapping(
+            screen_id=screen_id,
+            mapping_fields={"current_ad_index": next_index}
         )
         
         # Fetch next advertisement details from ads collection

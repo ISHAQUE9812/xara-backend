@@ -63,6 +63,7 @@ class ScreenService:
 
         await ScreenRepository.insert(screen_doc)
         screen_doc.pop("_id", None)
+        screen_doc["id"] = screen_doc["screen_id"]
         return screen_doc
 
     @staticmethod
@@ -71,6 +72,7 @@ class ScreenService:
 
         for screen in screens:
             screen.pop("_id", None)
+            screen["id"] = screen.get("screen_id")
 
             if "screen_name" not in screen and "name" in screen:
                 screen["screen_name"] = screen["name"]
@@ -133,12 +135,15 @@ class ScreenService:
             screen_id=data.screen_id,
             mapping_fields={
                 "mode": mode,
-                "ad_ids": playlist
+                "ad_ids": playlist,
+                "current_ad_index": 0,
+                "rotation_interval": rotation_interval
             }
         )
 
         updated_screen = await ScreenRepository.get_by_id(data.screen_id)
         updated_screen.pop("_id", None)
+        updated_screen["id"] = updated_screen["screen_id"]
 
         if "screen_name" not in updated_screen and "name" in updated_screen:
             updated_screen["screen_name"] = updated_screen["name"]
@@ -152,6 +157,12 @@ class ScreenService:
             "rotation_interval": rotation_interval,
             "current_media_index": 0,
             "current_media_id": current_media_id,
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+
+        await manager.broadcast_event({
+            "event": "media_changed",
+            "screen_id": data.screen_id,
             "timestamp": datetime.utcnow().isoformat(),
         })
 
@@ -194,6 +205,7 @@ class ScreenService:
         await ScreenRepository.update(screen_id, update_data)
         updated_screen = await ScreenRepository.get_by_id(screen_id)
         updated_screen.pop("_id", None)
+        updated_screen["id"] = updated_screen["screen_id"]
 
         if audience is not None:
             await manager.broadcast_event({

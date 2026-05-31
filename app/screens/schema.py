@@ -15,6 +15,7 @@ class ScreenAssignMediaRequest(BaseModel):
 
 class ScreenResponse(BaseModel):
     screen_id: str
+    id: Optional[str] = None
     screen_name: str
     location: str
     status: str
