@@ -50,11 +50,17 @@ class PlaybackEngine:
                 continue
                 
             mode = mapping.get("mode", "single")
-            if mode != "multi":
-                # Single mode doesn't rotate!
+            ad_ids = mapping["ad_ids"]
+            
+            if mode == "single":
+                # Single mode logic: Ensure the single assigned ad is set and playing
+                if ad_ids:
+                    single_ad_id = ad_ids[0]
+                    if screen.get("current_media_id") != single_ad_id:
+                        await self._play_single_ad(screen, single_ad_id)
                 continue
                 
-            ad_ids = mapping["ad_ids"]
+            # Multi mode logic: Rotate assigned ads
             interval = screen.get("rotation_interval", 10)
             
             # Check if it's time to rotate
@@ -63,6 +69,35 @@ class PlaybackEngine:
                 await self._rotate_ad(screen, ad_ids)
                 self.last_rotations[screen_id] = now
                  
+    async def _play_single_ad(self, screen, ad_id):
+        screen_id = screen["screen_id"]
+        
+        # Update screens state in MongoDB
+        await ScreenRepository.update(
+            screen_id=screen_id,
+            update_fields={"current_media_index": 0, "current_media_id": ad_id}
+        )
+        
+        ad = await AdRepository.get_by_id(ad_id)
+        if ad:
+            # Broadcast update event to all connected listeners (e.g. admin panels)
+            await manager.broadcast_event({
+                "event": "playback_changed",
+                "screen_id": screen_id,
+                "current_media_index": 0,
+                "current_media_id": ad_id
+            })
+            
+            # Send immediate change to the specific physical screen
+            await manager.send_to_screen(screen_id, {
+                "event": "media_changed",
+                "screen_id": screen_id,
+                "media_id": ad["ad_id"],
+                "url": ad["file_url"],
+                "type": ad["type"]
+            })
+            logger.info(f"Screen {screen_id} playing single ad {ad_id}")
+
     async def _rotate_ad(self, screen, ad_ids):
         screen_id = screen["screen_id"]
         

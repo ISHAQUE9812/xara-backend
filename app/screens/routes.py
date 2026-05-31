@@ -76,7 +76,7 @@ async def create_screen(
 
 @router.get("", response_model=List[ScreenResponse])
 @router.get("/", response_model=List[ScreenResponse])
-async def get_screens(current_user: dict = Depends(require_admin)):
+async def get_screens(current_user: dict = Depends(require_authenticated_user)):
     screens = await ScreenService.get_all_screens()
     return screens
 
@@ -107,7 +107,7 @@ async def get_live_monitoring(current_user: dict = Depends(require_admin)):
 @router.get("/{screen_id}", response_model=ScreenResponse)
 async def get_screen_by_id(
     screen_id: str,
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_authenticated_user)
 ):
     screen = await ScreenRepository.get_by_id(screen_id)
     if not screen:

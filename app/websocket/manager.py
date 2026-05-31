@@ -44,6 +44,28 @@ class ConnectionManager:
             "timestamp": datetime.utcnow().isoformat(),
         })
 
+        if self._db is not None:
+            try:
+                screen = await self._db["screens"].find_one({"screen_id": screen_id})
+                if screen and screen.get("playlist"):
+                    playlist = screen.get("playlist", [])
+                    index = screen.get("current_media_index", 0)
+                    if index >= len(playlist):
+                        index = 0
+                    if playlist:
+                        current_media_id = playlist[index]
+                        ad = await self._db["ads"].find_one({"ad_id": current_media_id})
+                        if ad:
+                            await self.send_to_screen(screen_id, {
+                                "event": "media_changed",
+                                "screen_id": screen_id,
+                                "media_id": ad["ad_id"],
+                                "url": ad["file_url"],
+                                "type": ad["type"]
+                            })
+            except Exception as exc:
+                logger.error(f"Failed to send initial media on connect: {exc}")
+
     async def disconnect(self, websocket: WebSocket):
         screen_id = self.screen_connections.pop(id(websocket), None)
 

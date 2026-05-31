@@ -40,9 +40,10 @@ async def connect_to_mongo() -> None:
         except Exception as exc:
             logger.error(f"MongoDB connection failed: {exc}")
             raise
-        # Create indexes (example for users collection)
+        # Create indexes
         db = get_db()
         await db["users"].create_index("email", unique=True)
+        await db["screen_ad_mappings"].create_index("screen_id", unique=True)
         logger.info("MongoDB indexes ensured.")
 
 
