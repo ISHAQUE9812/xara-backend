@@ -123,8 +123,6 @@ Below is the detailed hierarchy mapping each router in `app/main.py` down to its
       ├── PUT  /{screen_id}      --> update_screen()
       ├── DELETE /{screen_id}    --> delete_screen()
       ├── POST /assign-ad        --> assign_ad()
-      ├── POST /assign-multiple-ads -> assign_multiple_ads()
-      ├── PUT  /{screen_id}/mode --> update_screen_mode()
       └── GET  /{screen_id}/current-media -> get_current_media()
   ```
 

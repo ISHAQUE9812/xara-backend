@@ -3,7 +3,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # MongoDB connection string (use MONGODB_URL env var)
-    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_URL: str = "mongodb+srv://xaraoneis_db_user:fCdtpkefspR3kQEd@cluster0.exlsd9i.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
     # Database name (required for Motor client)
     DATABASE_NAME: str = "xara_db"
     # JWT configuration

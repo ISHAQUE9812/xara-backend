@@ -8,6 +8,16 @@ from app.screens.schema import (
     ScreenCreate, ScreenResponse, ScreenAssignMediaRequest, CurrentMediaResponse,
     AssignAdRequest, AssignMultipleAdsRequest, UpdateScreenModeRequest
 )
+
+from app.screens.schema import (
+    ScreenCreate,
+    ScreenAssignMediaRequest,
+    ScreenResponse,
+    CurrentMediaResponse,
+    AssignAdRequest,
+    AssignMultipleAdsRequest,
+    UpdateScreenModeRequest,
+)
 from app.screens.service import ScreenService
 from app.screens.repository import ScreenRepository, ScreenAdMappingRepository
 from app.ads.repository import AdRepository

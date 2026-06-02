@@ -76,8 +76,6 @@ Below is the complete tabular reference of all registered endpoints in the XARA 
 | **PUT** | `/screens/{screen_id}` | `app/screens/routes.py` | `update_screen` | **Yes** | **Yes** | Update a screen's name, resolution, or hardware properties. |
 | **DELETE** | `/screens/{screen_id}` | `app/screens/routes.py` | `delete_screen` | **Yes** | **Yes** | Permanently delete a screen node and clear its playlist mappings. |
 | **POST** | `/screens/assign-ad` | `app/screens/routes.py` | `assign_ad` | **Yes** | **Yes** | Assign a single advertisement to a screen (forces Single mode playback). |
-| **POST** | `/screens/assign-multiple-ads` | `app/screens/routes.py` | `assign_multiple_ads` | **Yes** | **Yes** | Assign a playlist of multiple ads and configure Single or Multi rotation mode. |
-| **PUT** | `/screens/{screen_id}/mode` | `app/screens/routes.py` | `update_screen_mode` | **Yes** | **Yes** | Toggle screen playback mode dynamically between `single` and `multi`. |
 | **GET** | `/screens/{screen_id}/current-media` | `app/screens/routes.py` | `get_current_media` | No | No | Public endpoint for smart screens to fetch their active assigned play assets. |
 | **WS** | `/ws/{screen_id}` | `app/websocket/screen_socket.py` | `screen_websocket` | **Yes** | No | Real-time screen sync connection for heartbeats, status updates, and interrupts. |
 | **POST** | `/analytics` | `app/routes/analytics_routes.py` | `record_analytics` | **Yes** | No | Log a new playback analytics heartbeat (audience, engagement, plays). |
